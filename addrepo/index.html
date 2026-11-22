@@ -169,8 +169,8 @@ async function put(relay, zkey, body) {
   try {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 10000);
-    const r = await fetch(`${relay}/${zkey}`, { method: "PUT", body, signal: ctl.signal,
-      headers: { "Content-Type": "application/pkarr.org/relays#payload" } });
+    // no Content-Type: the iroh relay's CORS rules do not allow that header
+    const r = await fetch(`${relay}/${zkey}`, { method: "PUT", body, signal: ctl.signal });
     clearTimeout(timer);
     return r.ok;
   } catch { return false; }
