@@ -55,18 +55,22 @@
 </main>
 
 <script type="module">
-import { finalizeEvent, generateSecretKey } from "https://cdn.jsdelivr.net/npm/nostr-tools@2.7.2/+esm";
+import * as ed from "https://cdn.jsdelivr.net/npm/@noble/ed25519@2.1.0/+esm";
 
-const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net", "wss://relay.nostr.band", "wss://offchain.pub", "wss://nostr.mom"];
-const KIND = 30078;                       // application data, replaceable by its "d" tag
+// pkarr (the signed DNS records iroh uses to find its nodes): the TV's QR carries an Ed25519
+// key seed and an AES key; this page signs a DNS packet with one TXT record, "_rf", holding
+// the chosen repositories (deflate, then AES-256-GCM with the QR key, additional data = the
+// public key in z-base-32), and PUTs it to the pkarr relays. The TV GETs it from them.
+const RELAYS = ["https://relay.pkarr.org", "https://dns.iroh.link/pkarr", "https://pkarr.pubky.app", "https://pkarr.pubky.org"];
 const STORE = "retrofire.repos";
 const $ = (id) => document.getElementById(id);
 
 const params = new URLSearchParams(location.hash.slice(1));
-const topic = params.get("t") || "";
+const seedB64 = params.get("s") || "";
 const keyB64 = params.get("k") || "";
 const device = params.get("d") || "Fire TV";
-$("tv").textContent = topic ? `Per: ${device}` : "Apri questa pagina dal QR che mostra la TV (Impostazioni RetroFire → Aggiungi repository).";
+const ready = seedB64 && keyB64;
+$("tv").textContent = ready ? `Per: ${device}` : "Apri questa pagina dal QR che mostra la TV (menu della griglia → Repository → Aggiungi repository).";
 
 function load() { try { return JSON.parse(localStorage.getItem(STORE) || "[]"); } catch { return []; } }
 function save(list) { try { localStorage.setItem(STORE, JSON.stringify(list)); } catch {} }
@@ -89,7 +93,7 @@ function render() {
     };
     list.appendChild(row);
   });
-  $("send").disabled = !topic || !repos.some((r) => r.checked !== false);
+  $("send").disabled = !ready || !repos.some((r) => r.checked !== false);
 }
 
 $("add").onclick = () => {
@@ -105,33 +109,71 @@ $("add").onclick = () => {
 
 function status(text, bad) { const s = $("status"); s.textContent = text; s.className = "status " + (bad ? "err" : "ok"); }
 
-function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function b64url(bytes) { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
 function unb64url(s) { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); }
 
-async function encrypt(payload) {
-  const raw = unb64url(keyB64);
-  if (raw.length !== 32) throw new Error("chiave del QR non valida");
-  const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(topic) }, key,
-    new TextEncoder().encode(JSON.stringify(payload))));
-  const out = new Uint8Array(iv.length + ct.length);
-  out.set(iv); out.set(ct, iv.length);
-  return b64url(out);
+const Z32 = "ybndrfg8ejkmcpqxot1uwisza345h769";
+function z32(bytes) {
+  let out = "", bits = 0, value = 0;
+  for (const b of bytes) { value = (value << 8) | b; bits += 8; while (bits >= 5) { out += Z32[(value >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits > 0) out += Z32[(value << (5 - bits)) & 31];
+  return out;
 }
 
-function publish(url, event) {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (ok) => { if (!done) { done = true; try { ws.close(); } catch {} resolve(ok); } };
-    const ws = new WebSocket(url);
-    const timer = setTimeout(() => finish(false), 8000);
-    ws.onopen = () => ws.send(JSON.stringify(["EVENT", event]));
-    ws.onmessage = (m) => {
-      try { const d = JSON.parse(m.data); if (d[0] === "OK" && d[1] === event.id) { clearTimeout(timer); finish(!!d[2]); } } catch {}
-    };
-    ws.onerror = () => { clearTimeout(timer); finish(false); };
-  });
+async function deflate(bytes) {
+  const cs = new CompressionStream("deflate-raw");
+  const stream = new Blob([bytes]).stream().pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function concat(...parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+// DNS message with one answer: _rf TXT <payload in strings of at most 255 bytes>
+function dnsPacket(text) {
+  const data = new TextEncoder().encode(text);
+  const chunks = [];
+  for (let i = 0; i < data.length; i += 255) { const c = data.slice(i, i + 255); chunks.push(Uint8Array.of(c.length), c); }
+  const rdata = concat(...chunks);
+  const name = concat(Uint8Array.of(3), new TextEncoder().encode("_rf"), Uint8Array.of(0));
+  const header = Uint8Array.of(0, 0, 0x84, 0, 0, 0, 0, 1, 0, 0, 0, 0);
+  const fixed = Uint8Array.of(0, 16, 0, 1, 0, 0, 1, 44, rdata.length >> 8, rdata.length & 255);   // TXT IN ttl 300
+  return concat(header, name, fixed, rdata);
+}
+
+async function signedPacket(payload) {
+  const seed = unb64url(seedB64);
+  const pub = await ed.getPublicKeyAsync(seed);
+  const zkey = z32(pub);
+  const raw = unb64url(keyB64);
+  if (raw.length !== 32 || seed.length !== 32) throw new Error("codice QR non valido");
+  const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const packed = await deflate(new TextEncoder().encode(JSON.stringify(payload)));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(zkey) }, key, packed));
+  const packet = dnsPacket(b64url(concat(iv, ct)));
+  if (packet.length > 1000) throw new Error("troppi repository in un invio: scegline meno");
+  const seq = BigInt(Date.now()) * 1000n;   // microseconds
+  const msg = concat(new TextEncoder().encode(`3:seqi${seq}e1:v${packet.length}:`), packet);
+  const sig = await ed.signAsync(msg, seed);
+  const ts = new Uint8Array(8);
+  new DataView(ts.buffer).setBigUint64(0, seq);
+  return { zkey, body: concat(sig, ts, packet) };
+}
+
+async function put(relay, zkey, body) {
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 10000);
+    const r = await fetch(`${relay}/${zkey}`, { method: "PUT", body, signal: ctl.signal,
+      headers: { "Content-Type": "application/pkarr.org/relays#payload" } });
+    clearTimeout(timer);
+    return r.ok;
+  } catch { return false; }
 }
 
 $("send").onclick = async () => {
@@ -139,14 +181,11 @@ $("send").onclick = async () => {
   $("send").disabled = true;
   status("Invio…");
   try {
-    const content = await encrypt({ v: 1, repos: chosen });
-    const now = Math.floor(Date.now() / 1000);
-    const event = finalizeEvent({ kind: KIND, created_at: now, content,
-      tags: [["d", topic], ["expiration", String(now + 3600)]] }, generateSecretKey());
-    const results = await Promise.all(RELAYS.map((r) => publish(r, event)));
+    const { zkey, body } = await signedPacket({ v: 1, repos: chosen });
+    const results = await Promise.all(RELAYS.map((r) => put(r, zkey, body)));
     const n = results.filter(Boolean).length;
     if (n) status(`Inviato (${n} di ${RELAYS.length} server). Guarda la TV: tra pochi secondi conferma.`);
-    else status("Nessun server Nostr ha accettato l'invio: riprova.", true);
+    else status("Nessun server ha accettato l'invio: riprova.", true);
   } catch (e) {
     status("Errore: " + e.message, true);
   }
