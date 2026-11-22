@@ -3,54 +3,74 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RetroFire · Aggiungi repository</title>
+<title>RetroFire · Collega la TV</title>
 <style>
-  :root { --bg:#10141a; --card:#1a212b; --line:#2c3644; --text:#e8edf3; --dim:#93a1b3; --accent:#ff7a1a; --ok:#3ccf7a; --err:#ff5a5a; }
+  :root { --bg:#0f1318; --card:#1a2029; --line:#2c3644; --text:#eef2f6; --dim:#9aa8b8; --accent:#ff7a1a; --ok:#3ccf7a; --err:#ff6262; }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.45 system-ui, sans-serif; }
-  main { max-width:560px; margin:0 auto; padding:20px 16px 48px; }
-  h1 { font-size:22px; margin:4px 0 2px; }
-  .tv { color:var(--dim); margin-bottom:18px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin:12px 0; }
-  .repo { display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
-  .repo:first-child { border-top:0; }
-  .repo input[type=checkbox] { width:22px; height:22px; margin-top:2px; accent-color:var(--accent); }
+  body { margin:0; background:var(--bg); color:var(--text); font:17px/1.45 system-ui, -apple-system, sans-serif; }
+  main { max-width:520px; margin:0 auto; padding:22px 16px 48px; }
+  .brand { color:var(--accent); font-weight:700; letter-spacing:.04em; font-size:14px; text-transform:uppercase; }
+  h1 { font-size:24px; margin:6px 0 4px; }
+  .sub { color:var(--dim); margin:0 0 18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin:14px 0; }
+  .card h2 { font-size:17px; margin:0 0 10px; }
+  .repo { display:flex; gap:12px; align-items:center; padding:12px 0; border-top:1px solid var(--line); }
+  .repo:first-of-type { border-top:0; padding-top:4px; }
+  .repo input { width:24px; height:24px; accent-color:var(--accent); flex:none; }
   .repo .name { font-weight:600; }
   .repo .url { color:var(--dim); font-size:13px; word-break:break-all; }
-  .repo button { margin-left:auto; background:none; border:0; color:var(--dim); font-size:20px; }
-  label { display:block; font-size:14px; color:var(--dim); margin:10px 0 4px; }
-  input[type=text], input[type=password] { width:100%; padding:11px 12px; border-radius:8px; border:1px solid var(--line); background:#0d1117; color:var(--text); font-size:16px; }
-  .btn { display:block; width:100%; padding:14px; border:0; border-radius:10px; font-size:17px; font-weight:600; margin-top:14px; }
-  .primary { background:var(--accent); color:#111; }
-  .secondary { background:#273140; color:var(--text); }
+  .repo .del { margin-left:auto; background:none; border:0; color:var(--dim); font-size:15px; padding:6px; }
+  label { display:block; font-weight:600; margin:14px 0 2px; }
+  .help { color:var(--dim); font-size:13px; margin:0 0 6px; }
+  input[type=text], input[type=password] { width:100%; padding:13px 12px; border-radius:10px; border:1px solid var(--line); background:#0b0f14; color:var(--text); font-size:16px; }
+  .btn { display:block; width:100%; padding:16px; border:0; border-radius:12px; font-size:18px; font-weight:700; margin-top:18px; }
+  .primary { background:var(--accent); color:#151515; }
+  .link { background:none; border:0; color:var(--accent); font-size:16px; padding:8px 0 0; font-weight:600; }
   .btn:disabled { opacity:.45; }
-  .status { margin-top:14px; min-height:24px; }
+  .status { margin-top:14px; font-weight:600; min-height:24px; }
   .ok { color:var(--ok); } .err { color:var(--err); }
-  .hint { color:var(--dim); font-size:13px; }
-  .empty { color:var(--dim); }
+  .done { text-align:center; padding:28px 12px; }
+  .done .big { font-size:54px; color:var(--ok); line-height:1; }
+  .done p { margin:10px 0 0; }
+  .note { color:var(--dim); font-size:13px; margin-top:18px; }
+  .hidden { display:none; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Aggiungi repository</h1>
-  <div class="tv" id="tv">RetroFire</div>
+  <div class="brand">RetroFire</div>
+  <h1 id="title">Collega i giochi alla TV</h1>
+  <p class="sub" id="sub"></p>
 
-  <div class="card">
-    <div id="list"></div>
+  <div id="form-area">
+    <div class="card" id="saved">
+      <h2>Repository da mandare alla TV</h2>
+      <div id="list"></div>
+      <button class="link" id="show-add">+ Aggiungi un altro repository</button>
+    </div>
+
+    <div class="card" id="add">
+      <h2 id="add-title">Nuovo repository</h2>
+      <label for="url">Link della cartella</label>
+      <p class="help">Il link MEGA della cartella del repository, completo della parte dopo il # (es. https://mega.nz/folder/…#…).</p>
+      <input type="text" id="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://mega.nz/folder/…#…">
+      <label for="pw">Password del repository</label>
+      <p class="help">Quella che ti hanno dato insieme al link (non è la password di MEGA).</p>
+      <input type="password" id="pw" autocomplete="off">
+      <label for="name">Nome (facoltativo)</label>
+      <p class="help">Come vuoi vederlo sulla TV, es. "Giochi di casa".</p>
+      <input type="text" id="name" autocomplete="off">
+    </div>
+
     <button class="btn primary" id="send">Invia alla TV</button>
     <div class="status" id="status"></div>
+    <p class="note">Link e password restano salvati solo in questo telefono, così la prossima volta basta premere «Invia alla TV». Alla TV arrivano cifrati con la chiave del codice QR.</p>
   </div>
 
-  <div class="card">
-    <strong>Nuovo repository</strong>
-    <label for="name">Nome</label>
-    <input type="text" id="name" placeholder="es. Giochi di casa" autocomplete="off">
-    <label for="url">Link della cartella (MEGA) o indirizzo base</label>
-    <input type="text" id="url" placeholder="https://mega.nz/folder/…#…" autocomplete="off" autocapitalize="off">
-    <label for="pw">Password</label>
-    <input type="password" id="pw" autocomplete="off">
-    <button class="btn secondary" id="add">Salva in questo telefono</button>
-    <p class="hint">I repository restano salvati solo in questo browser. Alla TV arrivano cifrati con la chiave del QR, che solo lei conosce.</p>
+  <div class="card done hidden" id="done">
+    <div class="big">✓</div>
+    <p><strong>Inviato.</strong></p>
+    <p>Guarda la TV: tra pochi secondi il codice sparisce e i giochi compaiono nella griglia.</p>
   </div>
 </main>
 
@@ -70,44 +90,55 @@ const seedB64 = params.get("s") || "";
 const keyB64 = params.get("k") || "";
 const device = params.get("d") || "Fire TV";
 const ready = seedB64 && keyB64;
-$("tv").textContent = ready ? `Per: ${device}` : "Apri questa pagina dal QR che mostra la TV (menu della griglia → Repository → Aggiungi repository).";
+$("sub").textContent = ready ? `TV: ${device}` : "Apri questa pagina inquadrando il codice QR che mostra la TV (in RetroFire: menu a sinistra della griglia → Repository → Aggiungi repository).";
 
 function load() { try { return JSON.parse(localStorage.getItem(STORE) || "[]"); } catch { return []; } }
 function save(list) { try { localStorage.setItem(STORE, JSON.stringify(list)); } catch {} }
 let repos = load();
+let adding = !repos.length;
 
 function render() {
   const list = $("list");
   list.innerHTML = "";
-  if (!repos.length) { list.innerHTML = '<div class="empty">Nessun repository salvato: aggiungine uno qui sotto.</div>'; }
+  $("saved").classList.toggle("hidden", !repos.length);
+  $("add").classList.toggle("hidden", !adding);
+  $("show-add").classList.toggle("hidden", adding);
+  $("add-title").textContent = repos.length ? "Nuovo repository" : "Il tuo repository";
   repos.forEach((r, i) => {
     const row = document.createElement("div");
     row.className = "repo";
-    row.innerHTML = `<input type="checkbox" ${r.checked !== false ? "checked" : ""}>
-      <div><div class="name"></div><div class="url"></div></div><button title="Elimina">✕</button>`;
+    row.innerHTML = `<input type="checkbox" ${r.checked !== false ? "checked" : ""} aria-label="Manda alla TV">
+      <div><div class="name"></div><div class="url"></div></div><button class="del">Elimina</button>`;
     row.querySelector(".name").textContent = r.name || "(senza nome)";
     row.querySelector(".url").textContent = r.url;
     row.querySelector("input").onchange = (e) => { r.checked = e.target.checked; save(repos); };
-    row.querySelector("button").onclick = () => {
-      if (confirm(`Eliminare "${r.name}" da questo telefono?`)) { repos.splice(i, 1); save(repos); render(); }
+    row.querySelector(".del").onclick = () => {
+      if (confirm(`Togliere "${r.name}" da questo telefono? (Sulla TV resta.)`)) { repos.splice(i, 1); save(repos); adding = adding || !repos.length; render(); }
     };
     list.appendChild(row);
   });
-  $("send").disabled = !ready || !repos.some((r) => r.checked !== false);
+  $("send").disabled = !ready;
 }
 
-$("add").onclick = () => {
-  const r = { name: $("name").value.trim(), url: $("url").value.trim(), password: $("pw").value, checked: true };
-  if (!r.url || !r.password) { status("Servono il link e la password.", true); return; }
-  if (!r.name) r.name = r.url.replace(/^https?:\/\//, "").slice(0, 30);
-  repos = repos.filter((x) => x.url !== r.url).concat([r]);
-  save(repos);
-  $("name").value = $("url").value = $("pw").value = "";
-  render();
-  status("Salvato.");
-};
+$("show-add").onclick = () => { adding = true; render(); $("url").focus(); };
 
 function status(text, bad) { const s = $("status"); s.textContent = text; s.className = "status " + (bad ? "err" : "ok"); }
+
+/** The repository typed in the form, saved; null if the form is empty; throws if half filled. */
+function takeForm() {
+  const url = $("url").value.trim(), password = $("pw").value, name = $("name").value.trim();
+  if (!url && !password) return null;
+  if (!/^https?:\/\//.test(url)) throw new Error("Il link deve iniziare con https://");
+  if (url.includes("mega.nz/") && !url.includes("#")) throw new Error("Al link MEGA manca la parte dopo il # (la chiave): copia il link completo.");
+  if (!password) throw new Error("Manca la password del repository.");
+  const r = { name: name || "Repository", url, password, checked: true };
+  repos = repos.filter((x) => x.url !== r.url).concat([r]);
+  save(repos);
+  $("url").value = $("pw").value = $("name").value = "";
+  adding = false;
+  render();
+  return r;
+}
 
 function b64url(bytes) { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
 function unb64url(s) { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); }
@@ -147,16 +178,16 @@ function dnsPacket(text) {
 
 async function signedPacket(payload) {
   const seed = unb64url(seedB64);
+  const raw = unb64url(keyB64);
+  if (raw.length !== 32 || seed.length !== 32) throw new Error("Codice QR non valido: inquadralo di nuovo.");
   const pub = await ed.getPublicKeyAsync(seed);
   const zkey = z32(pub);
-  const raw = unb64url(keyB64);
-  if (raw.length !== 32 || seed.length !== 32) throw new Error("codice QR non valido");
   const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const packed = await deflate(new TextEncoder().encode(JSON.stringify(payload)));
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(zkey) }, key, packed));
   const packet = dnsPacket(b64url(concat(iv, ct)));
-  if (packet.length > 1000) throw new Error("troppi repository in un invio: scegline meno");
+  if (packet.length > 1000) throw new Error("Troppi repository in un invio: togli la spunta a qualcuno.");
   const seq = BigInt(Date.now()) * 1000n;   // microseconds
   const msg = concat(new TextEncoder().encode(`3:seqi${seq}e1:v${packet.length}:`), packet);
   const sig = await ed.signAsync(msg, seed);
@@ -177,17 +208,27 @@ async function put(relay, zkey, body) {
 }
 
 $("send").onclick = async () => {
+  try {
+    takeForm();
+  } catch (e) {
+    status(e.message, true);
+    return;
+  }
   const chosen = repos.filter((r) => r.checked !== false).map(({ name, url, password }) => ({ name, url, password }));
+  if (!chosen.length) { status("Scrivi il link e la password, o spunta un repository salvato.", true); adding = true; render(); return; }
   $("send").disabled = true;
-  status("Invio…");
+  status("Invio in corso…");
   try {
     const { zkey, body } = await signedPacket({ v: 1, repos: chosen });
     const results = await Promise.all(RELAYS.map((r) => put(r, zkey, body)));
-    const n = results.filter(Boolean).length;
-    if (n) status(`Inviato (${n} di ${RELAYS.length} server). Guarda la TV: tra pochi secondi conferma.`);
-    else status("Nessun server ha accettato l'invio: riprova.", true);
+    if (results.some(Boolean)) {
+      $("form-area").classList.add("hidden");
+      $("done").classList.remove("hidden");
+      return;
+    }
+    status("Invio non riuscito (nessun server raggiungibile): controlla la connessione e riprova.", true);
   } catch (e) {
-    status("Errore: " + e.message, true);
+    status(e.message, true);
   }
   $("send").disabled = false;
 };
