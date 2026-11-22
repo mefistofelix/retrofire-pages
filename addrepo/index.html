@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RetroFire · Aggiungi repository</title>
+<style>
+  :root { --bg:#10141a; --card:#1a212b; --line:#2c3644; --text:#e8edf3; --dim:#93a1b3; --accent:#ff7a1a; --ok:#3ccf7a; --err:#ff5a5a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.45 system-ui, sans-serif; }
+  main { max-width:560px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:22px; margin:4px 0 2px; }
+  .tv { color:var(--dim); margin-bottom:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin:12px 0; }
+  .repo { display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+  .repo:first-child { border-top:0; }
+  .repo input[type=checkbox] { width:22px; height:22px; margin-top:2px; accent-color:var(--accent); }
+  .repo .name { font-weight:600; }
+  .repo .url { color:var(--dim); font-size:13px; word-break:break-all; }
+  .repo button { margin-left:auto; background:none; border:0; color:var(--dim); font-size:20px; }
+  label { display:block; font-size:14px; color:var(--dim); margin:10px 0 4px; }
+  input[type=text], input[type=password] { width:100%; padding:11px 12px; border-radius:8px; border:1px solid var(--line); background:#0d1117; color:var(--text); font-size:16px; }
+  .btn { display:block; width:100%; padding:14px; border:0; border-radius:10px; font-size:17px; font-weight:600; margin-top:14px; }
+  .primary { background:var(--accent); color:#111; }
+  .secondary { background:#273140; color:var(--text); }
+  .btn:disabled { opacity:.45; }
+  .status { margin-top:14px; min-height:24px; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+  .hint { color:var(--dim); font-size:13px; }
+  .empty { color:var(--dim); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Aggiungi repository</h1>
+  <div class="tv" id="tv">RetroFire</div>
+
+  <div class="card">
+    <div id="list"></div>
+    <button class="btn primary" id="send">Invia alla TV</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card">
+    <strong>Nuovo repository</strong>
+    <label for="name">Nome</label>
+    <input type="text" id="name" placeholder="es. Giochi di casa" autocomplete="off">
+    <label for="url">Link della cartella (MEGA) o indirizzo base</label>
+    <input type="text" id="url" placeholder="https://mega.nz/folder/…#…" autocomplete="off" autocapitalize="off">
+    <label for="pw">Password</label>
+    <input type="password" id="pw" autocomplete="off">
+    <button class="btn secondary" id="add">Salva in questo telefono</button>
+    <p class="hint">I repository restano salvati solo in questo browser. Alla TV arrivano cifrati con la chiave del QR, che solo lei conosce.</p>
+  </div>
+</main>
+
+<script type="module">
+import { finalizeEvent, generateSecretKey } from "https://cdn.jsdelivr.net/npm/nostr-tools@2.7.2/+esm";
+
+const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net", "wss://relay.nostr.band"];
+const KIND = 30078;                       // application data, replaceable by its "d" tag
+const STORE = "retrofire.repos";
+const $ = (id) => document.getElementById(id);
+
+const params = new URLSearchParams(location.hash.slice(1));
+const topic = params.get("t") || "";
+const keyB64 = params.get("k") || "";
+const device = params.get("d") || "Fire TV";
+$("tv").textContent = topic ? `Per: ${device}` : "Apri questa pagina dal QR che mostra la TV (Impostazioni RetroFire → Aggiungi repository).";
+
+function load() { try { return JSON.parse(localStorage.getItem(STORE) || "[]"); } catch { return []; } }
+function save(list) { try { localStorage.setItem(STORE, JSON.stringify(list)); } catch {} }
+let repos = load();
+
+function render() {
+  const list = $("list");
+  list.innerHTML = "";
+  if (!repos.length) { list.innerHTML = '<div class="empty">Nessun repository salvato: aggiungine uno qui sotto.</div>'; }
+  repos.forEach((r, i) => {
+    const row = document.createElement("div");
+    row.className = "repo";
+    row.innerHTML = `<input type="checkbox" ${r.checked !== false ? "checked" : ""}>
+      <div><div class="name"></div><div class="url"></div></div><button title="Elimina">✕</button>`;
+    row.querySelector(".name").textContent = r.name || "(senza nome)";
+    row.querySelector(".url").textContent = r.url;
+    row.querySelector("input").onchange = (e) => { r.checked = e.target.checked; save(repos); };
+    row.querySelector("button").onclick = () => {
+      if (confirm(`Eliminare "${r.name}" da questo telefono?`)) { repos.splice(i, 1); save(repos); render(); }
+    };
+    list.appendChild(row);
+  });
+  $("send").disabled = !topic || !repos.some((r) => r.checked !== false);
+}
+
+$("add").onclick = () => {
+  const r = { name: $("name").value.trim(), url: $("url").value.trim(), password: $("pw").value, checked: true };
+  if (!r.url || !r.password) { status("Servono il link e la password.", true); return; }
+  if (!r.name) r.name = r.url.replace(/^https?:\/\//, "").slice(0, 30);
+  repos = repos.filter((x) => x.url !== r.url).concat([r]);
+  save(repos);
+  $("name").value = $("url").value = $("pw").value = "";
+  render();
+  status("Salvato.");
+};
+
+function status(text, bad) { const s = $("status"); s.textContent = text; s.className = "status " + (bad ? "err" : "ok"); }
+
+function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function unb64url(s) { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); }
+
+async function encrypt(payload) {
+  const raw = unb64url(keyB64);
+  if (raw.length !== 32) throw new Error("chiave del QR non valida");
+  const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(topic) }, key,
+    new TextEncoder().encode(JSON.stringify(payload))));
+  const out = new Uint8Array(iv.length + ct.length);
+  out.set(iv); out.set(ct, iv.length);
+  return b64url(out);
+}
+
+function publish(url, event) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (ok) => { if (!done) { done = true; try { ws.close(); } catch {} resolve(ok); } };
+    const ws = new WebSocket(url);
+    const timer = setTimeout(() => finish(false), 8000);
+    ws.onopen = () => ws.send(JSON.stringify(["EVENT", event]));
+    ws.onmessage = (m) => {
+      try { const d = JSON.parse(m.data); if (d[0] === "OK" && d[1] === event.id) { clearTimeout(timer); finish(!!d[2]); } } catch {}
+    };
+    ws.onerror = () => { clearTimeout(timer); finish(false); };
+  });
+}
+
+$("send").onclick = async () => {
+  const chosen = repos.filter((r) => r.checked !== false).map(({ name, url, password }) => ({ name, url, password }));
+  $("send").disabled = true;
+  status("Invio…");
+  try {
+    const content = await encrypt({ v: 1, repos: chosen });
+    const now = Math.floor(Date.now() / 1000);
+    const event = finalizeEvent({ kind: KIND, created_at: now, content,
+      tags: [["d", topic], ["expiration", String(now + 3600)]] }, generateSecretKey());
+    const results = await Promise.all(RELAYS.map((r) => publish(r, event)));
+    const n = results.filter(Boolean).length;
+    if (n) status(`Inviato (${n} di ${RELAYS.length} server). Guarda la TV: tra pochi secondi conferma.`);
+    else status("Nessun server Nostr ha accettato l'invio: riprova.", true);
+  } catch (e) {
+    status("Errore: " + e.message, true);
+  }
+  $("send").disabled = false;
+};
+
+render();
+</script>
+</body>
+</html>
